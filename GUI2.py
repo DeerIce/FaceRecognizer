@@ -193,7 +193,10 @@ class ResultWindow():
         self.index += 1
         if (self.index > len(self.images)-1):
             self.index = 0
-        self.label.configure(image=self.images[self.index])
+        self.pil_img = Image.fromarray(cv2.cvtColor(
+            self.images[self.index], cv2.COLOR_GRAY2RGB))
+        self.photo = ImageTk.PhotoImage(self.pil_img)
+        self.label.configure(image=self.photo)
 
     def resized(w, h, w_box, h_box, pil_image):
         ''' 
