@@ -117,7 +117,6 @@ class GUI():
                 for filename in (file for file in files if file.endswith('.jpg')):
                     filepath = os.path.join(root, filename)
                     test_image = cv2.imread(filepath, 0)
-                    self.test_images.append(test_image)
                     # 检测人脸. scaleFactor: 每个阶段的比例系数
                     faces2 = self.face_cascade.detectMultiScale(
                         test_image, scaleFactor=1.3, minNeighbors=10)
@@ -127,6 +126,7 @@ class GUI():
                         predicted_name = self.le.inverse_transform(
                             [predicted_label])[0]
                         self.predicted_names.append(predicted_name)
+                        self.test_images.append(test_image)
 
                 #         cv2.putText(test_image, predicted_name, (10, 60),
                 #                     cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 6)
@@ -141,6 +141,8 @@ class GUI():
                 # if stop_flag:
                 #     break
             print('predict over!')
+            # print('face_length=',len(self.test_images))
+            # print('name_length=',len(self.predicted_names))
             self.show_result()
         else:
             messagebox.showerror('err: Have not train!')
@@ -152,9 +154,11 @@ class GUI():
     def print_activeCount(self):
         print(threading.activeCount())
 
-    def show_result(self):
+    def __show_result(self):
         resultWindow = ResultWindow(self.test_images, self.predicted_names)
-        result_thread = threading.Thread(target=resultWindow.window.mainloop)
+
+    def show_result(self):
+        result_thread = threading.Thread(target=self.__show_result)
         result_thread.start()
 
 
@@ -163,53 +167,56 @@ class ResultWindow():
         self.images = copy.deepcopy(test_images)
         self.names = copy.deepcopy(predicted_names)
         self.index = 0
-        self.w_box = 50
-        self.h_box = 50
+        self.w_box, self.h_box = 350, 350
+
         self.init_Window()
-        self.show_image()
-        # self.window.mainloop()
+        self.image_cv2tk()
+        self.layout()
 
     def init_Window(self):
         self.window = tk.Toplevel()
         self.window.title("Predict Result")
         self.window.geometry('500x500')
 
-    def show_image(self):
+    def layout(self):
         if (len(self.images) > 0):
-            self.pil_img = Image.fromarray(cv2.cvtColor(
-                self.images[self.index], cv2.COLOR_GRAY2RGB))
-            
-            self.photo = ImageTk.PhotoImage(self.pil_img)
+            self.img_label = tk.Label(
+                self.window, image=self.photos[self.index])
+            # self.img_label.grid(row=0, column=0)
+            self.img_label.place(x=0, y=0)
 
-            self.label = tk.Label(self.window, image=self.photo)
-            self.label.config(width=0, height=0)
-            # self.label.place(x=0, y=0)
-            self.label.grid(row=0, column=0)
+            self.name_label = tk.Label(
+                self.window, text=self.names[self.index], anchor="center",
+                bg="#b7f5fb", font=("微软雅黑", 36))
+            # self.name_label.grid(row=1, column=0)
+            self.name_label.place(x=300, y=150)
 
         tk.Button(self.window, text='Next',
-                  command=self.button_change_image, width=15, height=10).grid(row=1, column=0)
+                  command=self.button_change_image, width=15, height=1).place(x=170, y=400)
 
     def button_change_image(self):
         self.index += 1
         if (self.index > len(self.images)-1):
             self.index = 0
-        self.pil_img = Image.fromarray(cv2.cvtColor(
-            self.images[self.index], cv2.COLOR_GRAY2RGB))
-        self.photo = ImageTk.PhotoImage(self.pil_img)
-        self.label.configure(image=self.photo)
+        self.img_label.configure(image=self.photos[self.index])
+        self.name_label.configure(text=self.names[self.index])
 
-    def resized(w, h, w_box, h_box, pil_image):
-        ''' 
-        对一个pil_image对象进行缩放，让它在一个矩形框内，还能保持比例 
-        '''
-        f1 = 1.0*w_box/w  # 1.0 forces float division in Python2
-        f2 = 1.0*h_box/h
-        factor = min([f1, f2])
-        # print(f1, f2, factor) # test
-        # use best down-sizing filter
-        width = int(w*factor)
-        height = int(h*factor)
-        return pil_image.resize((width, height), Image.ANTIALIAS)
+    def image_cv2tk(self):
+        self.pil_imgs = [Image.fromarray(cv2.cvtColor(
+            image, cv2.COLOR_GRAY2RGB)) for image in self.images]
+        self.image_resize()
+        self.photos = [ImageTk.PhotoImage(pil_img)
+                       for pil_img in self.pil_imgs]
+
+    def image_resize(self):
+        resized_pil_imgs = []
+        for pil_img in self.pil_imgs:
+            w, h = pil_img.size
+            k = min([1.0*self.w_box/w, 1.0*self.h_box/h])
+            w_new = int(w*k)
+            h_new = int(h*k)
+            resized_pil_imgs.append(pil_img.resize((w_new, h_new)))
+        self.pil_imgs = copy.deepcopy(resized_pil_imgs)
 
 
 def load_HaarCascade(path):
