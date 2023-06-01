@@ -2,13 +2,12 @@ import cv2
 import os
 import re
 import copy
-from PIL import Image, ImageTk
-import numpy as np
-from sklearn import preprocessing
-import tkinter as tk
-from tkinter import filedialog
-from tkinter import messagebox
 import threading
+import numpy as np
+import tkinter as tk
+from PIL import Image, ImageTk
+from sklearn import preprocessing
+from tkinter import filedialog, messagebox
 
 
 class GUI():
@@ -19,7 +18,7 @@ class GUI():
         self.init_StringVar()
         self.train_folder_msg()
         self.test_folder_msg()
-        self.button_train_predict()
+        self.layout()
 
         self.window.mainloop()
 
@@ -64,18 +63,26 @@ class GUI():
         selected_folder = filedialog.askdirectory()  # 使用askdirectory函数选择文件夹
         self.path_train.set(selected_folder)
         self.train_over = False
+        self.train_button.config(state=tk.NORMAL)
 
     def select_test_folder(self):
         selected_folder = filedialog.askdirectory()  # 使用askdirectory函数选择文件夹
         self.path_test.set(selected_folder)
+        if(self.train_over):
+            self.predict_button.config(state=tk.NORMAL)
 
-    def button_train_predict(self):
-        tk.Button(self.window, textvariable=self.train_status, command=self.train,
-                  width=10, height=3).grid(row=4, column=0)
-        tk.Button(self.window, text="Predict", command=self.predict,
-                  width=10, height=3).grid(row=4, column=1)
-        tk.Button(self.window, text="currentThread",
-                  command=self.print_activeCount).grid(row=4, column=2)
+    def layout(self):
+        self.train_button = tk.Button(self.window, textvariable=self.train_status, command=self.train,
+                                      width=10, height=3)
+        self.train_button.grid(row=4, column=0)
+        self.train_button.config(state=tk.DISABLED)
+
+        self.predict_button = tk.Button(self.window, text="Predict", command=self.predict,
+                                        width=10, height=3)
+        self.predict_button.grid(row=4, column=1)
+        self.predict_button.config(state=tk.DISABLED)
+        # tk.Button(self.window, text="currentThread",
+        #           command=self.print_activeCount).grid(row=4, column=2)
 
     def __train(self):
         if (not len(self.path_train.get())):
@@ -84,16 +91,19 @@ class GUI():
 
         print('Training...')
         self.train_status.set("Training...")
+        self.predict_button.config(state=tk.DISABLED)
 
         labels_word = []
         images = []
+        self.train_over = False
         for root, dirs, files in os.walk(self.path_train.get()):
             # print("root="+root)
             for filename in (file for file in files if file.endswith('.jpg')):
                 filepath = os.path.join(root, filename)
                 image = cv2.imread(filepath, 0)
+                # print(filepath)
                 faces1 = self.face_cascade.detectMultiScale(
-                    image, scaleFactor=1.3, minNeighbors=10)
+                    image, scaleFactor=1.1, minNeighbors=10)
                 for (x, y, w, h) in faces1:
                     images.append(image[y:y+h, x:x+w])
                     labels_word.append(re.split(r'[/\\]', filepath)[-2])
@@ -103,6 +113,8 @@ class GUI():
         self.recognizer.train(images, np.array(labels_num))
         self.train_status.set("Train")
         self.train_over = True
+        if(len(self.path_test.get())>0):
+            self.predict_button.config(state=tk.NORMAL)
         print('Train over!')
 
     def train(self):
@@ -112,14 +124,17 @@ class GUI():
     def __predict(self):
         if (self.train_over):
             print('predicting...')
+            self.predicted_names = []
+            self.test_images = []
             stop_flag = False
             for root, dirs, files in os.walk(self.path_test.get()):
                 for filename in (file for file in files if file.endswith('.jpg')):
                     filepath = os.path.join(root, filename)
                     test_image = cv2.imread(filepath, 0)
+                    # print(filepath)
                     # 检测人脸. scaleFactor: 每个阶段的比例系数
                     faces2 = self.face_cascade.detectMultiScale(
-                        test_image, scaleFactor=1.3, minNeighbors=10)
+                        test_image, scaleFactor=1.2, minNeighbors=10)
                     for (x, y, w, h) in faces2:
                         predicted_label, conf = self.recognizer.predict(
                             test_image[y:y+h, x:x+w])
@@ -176,7 +191,7 @@ class ResultWindow():
     def init_Window(self):
         self.window = tk.Toplevel()
         self.window.title("Predict Result")
-        self.window.geometry('500x500')
+        self.window.geometry('700x500')
 
     def layout(self):
         if (len(self.images) > 0):
